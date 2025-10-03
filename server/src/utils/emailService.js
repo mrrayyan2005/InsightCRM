@@ -7,17 +7,29 @@ export const isValidEmail = (email) => {
   return emailRegex.test(email);
 };
 
-// Create email transporter with dynamic user config
+// Create email transporter with dynamic user config - Production Ready
 const createTransporter = (userEmailConfig = null) => {
   // Only use user's email config - no fallback to .env
   if (userEmailConfig && userEmailConfig.isConfigured) {
-    return nodemailer.createTransport({
+    return nodemailer.createTransporter({
       host: userEmailConfig.smtpHost,
       port: userEmailConfig.smtpPort,
       secure: userEmailConfig.smtpPort === 465, // true for 465, false for other ports
       auth: {
         user: userEmailConfig.smtpUser,
         pass: userEmailConfig.smtpPassword
+      },
+      // Production-ready connection settings
+      connectionTimeout: 60000, // 60 seconds
+      greetingTimeout: 30000, // 30 seconds
+      socketTimeout: 60000, // 60 seconds
+      // Connection pooling for better performance
+      pool: true,
+      maxConnections: 5,
+      maxMessages: 100,
+      // Retry settings
+      tls: {
+        rejectUnauthorized: false // For self-signed certificates
       }
     });
   }
@@ -26,59 +38,86 @@ const createTransporter = (userEmailConfig = null) => {
   throw new Error('Email configuration is required. Please configure your email settings first.');
 };
 
-// Send email function
-export const sendEmail = async (to, subject, htmlContent, textContent = '', fromEmail = null, fromName = null, userEmailConfig = null) => {
-  try {
-    // Validate email address
-    if (!isValidEmail(to)) {
-      throw new ApiError(400, `Invalid email address: ${to}`);
+// Send email function with retry logic - Production Ready
+export const sendEmail = async (to, subject, htmlContent, textContent = '', fromEmail = null, fromName = null, userEmailConfig = null, maxRetries = 3) => {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Validate email address
+      if (!isValidEmail(to)) {
+        throw new ApiError(400, `Invalid email address: ${to}`);
+      }
+
+      const transporter = createTransporter(userEmailConfig);
+      
+      // Only verify connection on first attempt to avoid redundant checks
+      if (attempt === 1) {
+        try {
+          await transporter.verify();
+        } catch (verifyError) {
+          console.log(`⚠️ SMTP verification failed for ${to}, but proceeding with send attempt...`);
+        }
+      }
+
+      // Require user's email configuration - no fallbacks
+      if (!userEmailConfig || !userEmailConfig.isConfigured) {
+        throw new ApiError(400, 'Email configuration is required. Please configure your email settings first.');
+      }
+
+      // Use company's configured email
+      const senderEmail = fromEmail || userEmailConfig.smtpUser;
+      const senderName = fromName || userEmailConfig.fromName || 'Company CRM';
+
+      const mailOptions = {
+        from: `"${senderName}" <${senderEmail}>`,
+        to,
+        subject,
+        html: htmlContent,
+        text: textContent || htmlContent.replace(/<[^>]*>/g, '') // Strip HTML for text version
+      };
+
+      const result = await transporter.sendMail(mailOptions);
+      console.log(`✅ Email sent to ${to} on attempt ${attempt}: ${result.messageId}`);
+      
+      return {
+        success: true,
+        messageId: result.messageId,
+        to,
+        subject,
+        attempts: attempt
+      };
+      
+    } catch (error) {
+      lastError = error;
+      console.error(`❌ Failed to send email to ${to} (attempt ${attempt}/${maxRetries}):`, error.message);
+      
+      // Don't retry for authentication or invalid email errors
+      if (error.code === 'EAUTH' || error.responseCode === 550) {
+        break;
+      }
+      
+      // Wait before retrying (exponential backoff)
+      if (attempt < maxRetries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // Max 10 seconds
+        console.log(`⏳ Retrying email to ${to} in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
-
-    const transporter = createTransporter(userEmailConfig);
-    
-    // Verify connection configuration
-    await transporter.verify();
-
-    // Require user's email configuration - no fallbacks
-    if (!userEmailConfig || !userEmailConfig.isConfigured) {
-      throw new ApiError(400, 'Email configuration is required. Please configure your email settings first.');
-    }
-
-    // Use company's configured email
-    const senderEmail = fromEmail || userEmailConfig.smtpUser;
-    const senderName = fromName || userEmailConfig.fromName || 'Company CRM';
-
-    const mailOptions = {
-      from: `"${senderName}" <${senderEmail}>`,
-      to,
-      subject,
-      html: htmlContent,
-      text: textContent || htmlContent.replace(/<[^>]*>/g, '') // Strip HTML for text version
-    };
-
-    const result = await transporter.sendMail(mailOptions);
-    console.log(`✅ Email sent to ${to}: ${result.messageId}`);
-    
-    return {
-      success: true,
-      messageId: result.messageId,
-      to,
-      subject
-    };
-    
-  } catch (error) {
-    console.error(`❌ Failed to send email to ${to}:`, error.message);
-    
-    // Handle different types of email errors
-    if (error.code === 'EAUTH') {
-      throw new ApiError(500, 'Email authentication failed. Please check email credentials.');
-    } else if (error.code === 'ECONNECTION') {
-      throw new ApiError(500, 'Failed to connect to email server.');
-    } else if (error.responseCode === 550) {
-      throw new ApiError(400, `Email address ${to} does not exist or is invalid.`);
-    } else {
-      throw new ApiError(500, `Failed to send email: ${error.message}`);
-    }
+  }
+  
+  // All retries failed, throw the last error
+  console.error(`❌ All ${maxRetries} attempts failed for ${to}`);
+  
+  // Handle different types of email errors
+  if (lastError.code === 'EAUTH') {
+    throw new ApiError(500, 'Email authentication failed. Please check email credentials.');
+  } else if (lastError.code === 'ECONNECTION' || lastError.code === 'ETIMEDOUT') {
+    throw new ApiError(500, 'Connection timeout - email server unreachable.');
+  } else if (lastError.responseCode === 550) {
+    throw new ApiError(400, `Email address ${to} does not exist or is invalid.`);
+  } else {
+    throw new ApiError(500, `Failed to send email after ${maxRetries} attempts: ${lastError.message}`);
   }
 };
 

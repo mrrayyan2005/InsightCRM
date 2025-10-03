@@ -254,25 +254,43 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
   res.status(200).json(new ApiResponse(200, null, "Delivery status updated successfully"));
 });
 
-// Background processing with real email sending
+// Background processing with real email sending - Production Ready
 const processCampaignInBackground = async (campaignId) => {
+  let campaign;
+  const startTime = Date.now();
+  const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes timeout
+  
   try {
-    const campaign = await Campaign.findById(campaignId)
+    console.log(`📧 [${campaignId}] Starting background campaign processing...`);
+    
+    campaign = await Campaign.findById(campaignId)
       .populate("segment_id")
       .populate("created_by");
 
-    if (!campaign) return;
+    if (!campaign) {
+      console.error(`❌ [${campaignId}] Campaign not found`);
+      return;
+    }
 
-    console.log(`📧 Starting email campaign: ${campaign.name}`);
+    console.log(`📧 [${campaignId}] Starting email campaign: ${campaign.name}`);
+
+    // Check timeout
+    if (Date.now() - startTime > TIMEOUT_MS) {
+      throw new Error("Campaign processing timeout - initial setup took too long");
+    }
 
     // 1. Get customers matching segment using the same query logic as preview
+    console.log(`🔍 [${campaignId}] Building customer query...`);
     const query = buildSegmentQuery(campaign.segment_id.rules);
     const customers = await Customer.find(query).lean();
+    console.log(`👥 [${campaignId}] Found ${customers.length} customers`);
 
     // 2. Update campaign status with exact count
     campaign.status = "processing";
     campaign.stats.total_recipients = customers.length;
+    campaign.stats.started_at = new Date();
     await campaign.save();
+    console.log(`✅ [${campaignId}] Campaign status updated to processing`);
 
     // 3. Prepare email data for bulk sending
     const emailList = [];
@@ -317,20 +335,36 @@ const processCampaignInBackground = async (campaignId) => {
     const createdLogs = logResults.filter(r => r.status === 'fulfilled').map(r => r.value);
     console.log(`📝 Created ${createdLogs.length} communication logs`);
 
-    // 5. Send actual emails using the campaign template with tracking
+    // 5. Send actual emails using the campaign template with tracking - Production Safe
     let emailResults = { sent: 0, failed: 0, errors: [] };
     
     if (emailList.length > 0) {
-      console.log(`📤 Sending emails to ${emailList.length} recipients...`);
+      console.log(`📤 [${campaignId}] Sending emails to ${emailList.length} recipients...`);
       
       // Get sender name from email configuration (not user account name)
-      const senderName = campaign.created_by.emailConfig.fromName || 'Company CRM';
+      const senderName = campaign.created_by.emailConfig?.fromName || 'Company CRM';
       
-      // Send emails individually with tracking
+      // Check if email config is valid
+      if (!campaign.created_by.emailConfig || !campaign.created_by.emailConfig.isConfigured) {
+        throw new Error("Email configuration is not properly set up");
+      }
+      
+      // Send emails individually with tracking and timeout protection
       const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+      const emailTimeout = 30000; // 30 seconds per email
       
-      for (const emailData of emailList) {
+      for (let i = 0; i < emailList.length; i++) {
+        const emailData = emailList[i];
+        
+        // Check overall timeout periodically
+        if (Date.now() - startTime > TIMEOUT_MS) {
+          console.log(`⏰ [${campaignId}] Campaign timeout reached, stopping at ${i}/${emailList.length} emails`);
+          break;
+        }
+        
         try {
+          console.log(`📧 [${campaignId}] Sending email ${i + 1}/${emailList.length} to ${emailData.email}`);
+          
           // Find the corresponding log for this customer
           const customerLog = createdLogs.find(log => 
             log.customer_id.toString() === customers.find(c => c.email === emailData.email)?._id.toString()
@@ -343,7 +377,7 @@ const processCampaignInBackground = async (campaignId) => {
               campaign.template.body,
               emailData.name,
               customerLog.message_id,
-              process.env.SERVER_URL || 'http://localhost:5000',
+              process.env.SERVER_URL || 'https://insightcrm.onrender.com',
               campaign.created_by.emailConfig.fromName || 'Your Company'
             );
 
@@ -357,43 +391,78 @@ const processCampaignInBackground = async (campaignId) => {
               personalizedText = personalizedText.replace(new RegExp(placeholder, 'g'), emailData[key] || '');
             });
 
-            await sendEmail(
+            // Send email with timeout protection
+            const emailPromise = sendEmail(
               emailData.email,
               campaign.template.subject,
               personalizedHtml,
               personalizedText,
-              campaign.created_by.email,
+              campaign.created_by.emailConfig.smtpUser,
               senderName,
               campaign.created_by.emailConfig
             );
             
+            // Add timeout to email sending
+            const timeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('Email sending timeout')), emailTimeout);
+            });
+            
+            await Promise.race([emailPromise, timeoutPromise]);
+            
             emailResults.sent++;
+            console.log(`✅ [${campaignId}] Email sent successfully to ${emailData.email}`);
             
             // Update log status to sent
             await CommunicationLog.findByIdAndUpdate(customerLog._id, {
               status: 'sent',
               sent_at: new Date()
-            });
+            }).catch(err => console.error(`❌ Failed to update log for ${emailData.email}:`, err.message));
             
-            // Rate limiting: wait 100ms between emails
-            await delay(100);
+            // Rate limiting: wait between emails (production safe)
+            await delay(200); // Increased delay for production stability
           }
           
         } catch (error) {
+          console.error(`❌ [${campaignId}] Failed to send email to ${emailData.email}:`, error.message);
           emailResults.failed++;
           emailResults.errors.push({
             email: emailData.email,
             error: error.message
           });
+          
+          // Update communication log for failed email
+          const customerLog = createdLogs.find(log => 
+            log.customer_id.toString() === customers.find(c => c.email === emailData.email)?._id.toString()
+          );
+          
+          if (customerLog) {
+            await CommunicationLog.findByIdAndUpdate(customerLog._id, {
+              status: 'failed',
+              failure_reason: error.message
+            }).catch(err => console.error(`❌ Failed to update failed log:`, err.message));
+          }
+        }
+        
+        // Update campaign progress every 10 emails
+        if ((i + 1) % 10 === 0) {
+          await Campaign.findByIdAndUpdate(campaignId, {
+            'stats.sent': emailResults.sent,
+            'stats.failed': emailResults.failed,
+            'stats.progress': Math.round(((i + 1) / emailList.length) * 100)
+          }).catch(err => console.error(`❌ Failed to update campaign progress:`, err.message));
+          
+          console.log(`📊 [${campaignId}] Progress: ${i + 1}/${emailList.length} (${emailResults.sent} sent, ${emailResults.failed} failed)`);
         }
       }
 
-      console.log(`✅ Email results: ${emailResults.sent} sent, ${emailResults.failed} failed`);
+      console.log(`✅ [${campaignId}] Email campaign finished: ${emailResults.sent} sent, ${emailResults.failed} failed`);
       
       // Log any email errors
       if (emailResults.errors.length > 0) {
-        console.log(`📋 Email errors:`, emailResults.errors);
+        console.log(`📋 [${campaignId}] Email errors summary:`, emailResults.errors.slice(0, 5));
       }
+    } else {
+      console.log(`⚠️ [${campaignId}] No valid emails to send`);
     }
 
     // 6. Update communication logs based on email results
