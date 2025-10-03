@@ -201,14 +201,23 @@ const createCampaign = asyncHandler(async (req, res) => {
     },
   });
 
-  // 5. Process campaign in background with proper error handling
-  processCampaignInBackground(campaign._id).catch(error => {
-    console.error("❌ Background campaign processing failed:", error);
-  });
+  // 5. Process campaign immediately (like before deployment)
+  try {
+    await processCampaignImmediately(campaign._id);
+  } catch (error) {
+    console.error("❌ Campaign processing failed:", error);
+    await Campaign.findByIdAndUpdate(campaign._id, {
+      status: "failed",
+      "stats.failure_reason": error.message,
+    });
+  }
+
+  // Fetch updated campaign to return current status
+  const updatedCampaign = await Campaign.findById(campaign._id);
 
   res
     .status(201)
-    .json(new ApiResponse(201, campaign, "Campaign created successfully"));
+    .json(new ApiResponse(201, updatedCampaign, "Campaign created successfully"));
 });
 
 // Get user's campaigns
@@ -253,6 +262,92 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
 
   res.status(200).json(new ApiResponse(200, null, "Delivery status updated successfully"));
 });
+
+// Immediate campaign processing (like before deployment) - Simple and Fast
+const processCampaignImmediately = async (campaignId) => {
+  try {
+    console.log(`📧 Processing campaign immediately: ${campaignId}`);
+    
+    const campaign = await Campaign.findById(campaignId)
+      .populate("segment_id")
+      .populate("created_by");
+
+    if (!campaign) {
+      throw new Error("Campaign not found");
+    }
+
+    // 1. Get customers matching segment
+    const query = buildSegmentQuery(campaign.segment_id.rules);
+    const customers = await Customer.find(query).lean();
+    console.log(`👥 Found ${customers.length} customers for campaign`);
+
+    // 2. Prepare email data
+    const emailList = customers
+      .filter(customer => isValidEmail(customer.email))
+      .map(customer => ({
+        email: customer.email,
+        name: customer.name,
+        total_spent: customer.stats?.total_spent || 0,
+        orders_count: customer.stats?.order_count || 0,
+        city: customer.address?.city || '',
+        phone: customer.phone || ''
+      }));
+
+    console.log(`📧 Sending to ${emailList.length} valid emails`);
+
+    // 3. Send emails using bulk method (like before)
+    let personalizedHtml = campaign.template.body;
+    let personalizedText = campaign.template.body;
+
+    const emailResults = await sendBulkEmails(
+      emailList,
+      campaign.template.subject,
+      personalizedHtml,
+      personalizedText,
+      campaign.created_by.emailConfig.smtpUser,
+      campaign.created_by.emailConfig.fromName,
+      campaign.created_by.emailConfig
+    );
+
+    // 4. Create communication logs for all emails
+    const logPromises = customers.map((customer) => {
+      const message_id = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${customer._id}`;
+      const isValidEmailAddr = isValidEmail(customer.email);
+      const wasSuccessful = isValidEmailAddr && emailResults.sent > 0;
+      
+      return CommunicationLog.create({
+        campaign_id: campaign._id,
+        customer_id: customer._id,
+        status: wasSuccessful ? "delivered" : "failed",
+        message_id,
+        sent_at: new Date(),
+        delivered_at: wasSuccessful ? new Date() : null,
+        failure_reason: !isValidEmailAddr ? `Invalid email: ${customer.email}` : 
+                       !wasSuccessful ? "Email sending failed" : null
+      });
+    });
+
+    await Promise.allSettled(logPromises);
+
+    // 5. Update campaign to completed status immediately
+    await Campaign.findByIdAndUpdate(campaignId, {
+      status: "completed",
+      "stats.sent": emailResults.sent,
+      "stats.failed": emailResults.failed + (customers.length - emailList.length),
+      "stats.delivered": emailResults.sent,
+      "stats.total_recipients": customers.length,
+      "stats.delivery_rate": customers.length > 0 ? (emailResults.sent / customers.length) * 100 : 0,
+      "stats.open_rate": 0,
+      "stats.click_rate": 0
+    });
+
+    console.log(`✅ Campaign completed immediately: ${emailResults.sent} sent, ${emailResults.failed} failed`);
+
+  } catch (error) {
+    console.error("❌ Immediate campaign processing failed:", error);
+    throw error;
+  }
+};
 
 // Background processing with real email sending - Production Ready
 const processCampaignInBackground = async (campaignId) => {
