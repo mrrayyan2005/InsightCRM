@@ -201,8 +201,10 @@ const createCampaign = asyncHandler(async (req, res) => {
     },
   });
 
-  // 5. Process campaign in background
-  processCampaignInBackground(campaign._id);
+  // 5. Process campaign in background with proper error handling
+  processCampaignInBackground(campaign._id).catch(error => {
+    console.error("❌ Background campaign processing failed:", error);
+  });
 
   res
     .status(201)
