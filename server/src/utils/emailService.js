@@ -11,7 +11,7 @@ export const isValidEmail = (email) => {
 const createTransporter = (userEmailConfig = null) => {
   // Only use user's email config - no fallback to .env
   if (userEmailConfig && userEmailConfig.isConfigured) {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       host: userEmailConfig.smtpHost,
       port: userEmailConfig.smtpPort,
       secure: userEmailConfig.smtpPort === 465, // true for 465, false for other ports
