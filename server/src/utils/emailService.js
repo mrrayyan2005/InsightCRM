@@ -124,7 +124,7 @@ export const sendBulkEmails = async (emailList, subject, htmlTemplate, textTempl
 };
 
 // Create HTML email template with advanced tracking (multiple methods to counter image blocking)
-export const createEmailTemplate = (subject, body, customerName = '', messageId = '', serverUrl = 'http://localhost:5000', companyName = 'Your Company') => {
+export const createEmailTemplate = (subject, body, customerName = '', messageId = '', serverUrl = 'https://insightcrm.onrender.com', companyName = 'Your Company') => {
   
   let trackingElements = '';
   let processedBody = body.replace(/\n/g, '<br>');
