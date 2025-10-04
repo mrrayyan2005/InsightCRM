@@ -29,19 +29,33 @@ class EmailServiceV2 {
       throw new ApiError(400, `Invalid email address: ${to}`);
     }
 
-    const emailDomain = userEmailConfig.smtpUser.split('@')[1].toLowerCase();
     let service = null;
 
-    // Determine which service to use based on user's email domain
-    if (emailDomain.includes('gmail.com') || emailDomain.includes('googlemail.com')) {
+    // Determine which service to use based on user's preferred service configuration
+    const preferredService = userEmailConfig.emailService || userEmailConfig.preferredService || 'brevo';
+    
+    // Use the service the user actually configured
+    if (preferredService === 'gmail' && userEmailConfig.googleAccessToken) {
       service = this.services.gmail;
-    } else if (userEmailConfig.sendgridApiKey) {
+    } else if (preferredService === 'sendgrid' && userEmailConfig.sendgridApiKey) {
       service = this.services.sendgrid;
-    } else if (userEmailConfig.resendApiKey) {
+    } else if (preferredService === 'resend' && userEmailConfig.resendApiKey) {
       service = this.services.resend;
-    } else {
-      // Default to Brevo (free tier available)
+    } else if (preferredService === 'brevo' && userEmailConfig.brevoApiKey) {
       service = this.services.brevo;
+    } else {
+      // Auto-detect based on available credentials
+      if (userEmailConfig.brevoApiKey) {
+        service = this.services.brevo;
+      } else if (userEmailConfig.sendgridApiKey) {
+        service = this.services.sendgrid;
+      } else if (userEmailConfig.resendApiKey) {
+        service = this.services.resend;
+      } else if (userEmailConfig.googleAccessToken) {
+        service = this.services.gmail;
+      } else {
+        throw new ApiError(400, 'No valid email service configuration found. Please configure at least one email service.');
+      }
     }
 
     // Try sending with retry logic
