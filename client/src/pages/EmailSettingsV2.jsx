@@ -545,31 +545,6 @@ const EmailSettingsV2 = () => {
               </div>
             )}
 
-            {/* Why This Change */}
-            <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <FiZap className="w-5 h-5 text-yellow-600" />
-                <h3 className="font-semibold text-blue-900">Why This Change?</h3>
-              </div>
-              <ul className="space-y-3 text-sm text-blue-700">
-                <li className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 bg-red-400 rounded-full mt-2 flex-shrink-0"></div>
-                  <span><strong>Problem:</strong> Render blocks SMTP ports (25, 465, 587) in production</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
-                  <span><strong>Solution:</strong> Use HTTP APIs that work everywhere</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
-                  <span><strong>Benefit:</strong> More reliable delivery and better features</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 bg-purple-400 rounded-full mt-2 flex-shrink-0"></div>
-                  <span><strong>Still Professional:</strong> Emails still send from your company domain</span>
-                </li>
-              </ul>
-            </div>
 
             {/* Current Status */}
             {emailConfig.isConfigured && (
