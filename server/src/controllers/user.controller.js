@@ -6,7 +6,10 @@ import { User } from "../models/user.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
-import { sendEmail, sendBulkEmails, createEmailTemplate, isValidEmail } from "../utils/emailService.js";
+// Import the new email service that works with Render (no SMTP port blocking)
+import { sendEmail, sendBulkEmails, createEmailTemplate, isValidEmail } from "../utils/emailServiceV2.js";
+// Keep the old one as fallback for local development
+// import { sendEmail, sendBulkEmails, createEmailTemplate, isValidEmail } from "../utils/emailService.js";
 
 // Helper to build MongoDB query from rules
 const buildSegmentQuery = (rules) => {
