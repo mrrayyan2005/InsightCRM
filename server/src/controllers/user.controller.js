@@ -660,22 +660,39 @@ const deleteCampaign = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, null, "Campaign deleted successfully"));
 });
 
-// Get user's email settings
+// Get user's email settings (updated for new email service format)
 const getEmailSettings = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).select('emailConfig');
   
-  // Don't return the password for security
+  // Return new email service configuration format
   const emailConfig = user.emailConfig ? {
+    // Legacy SMTP fields (for backward compatibility)
     smtpHost: user.emailConfig.smtpHost,
     smtpPort: user.emailConfig.smtpPort,
     smtpUser: user.emailConfig.smtpUser,
     fromName: user.emailConfig.fromName,
-    isConfigured: user.emailConfig.isConfigured
+    
+    // New email service fields
+    emailService: user.emailConfig.emailService || "gmail",
+    googleAccessToken: user.emailConfig.googleAccessToken || "",
+    sendgridApiKey: user.emailConfig.sendgridApiKey || "",
+    resendApiKey: user.emailConfig.resendApiKey || "",
+    brevoApiKey: user.emailConfig.brevoApiKey || "",
+    preferredService: user.emailConfig.preferredService || "gmail",
+    
+    isConfigured: user.emailConfig.isConfigured || false
   } : {
+    // Default values for new users
     smtpHost: "smtp.gmail.com",
     smtpPort: 587,
     smtpUser: "",
     fromName: "",
+    emailService: "gmail",
+    googleAccessToken: "",
+    sendgridApiKey: "",
+    resendApiKey: "",
+    brevoApiKey: "",
+    preferredService: "gmail",
     isConfigured: false
   };
 
@@ -684,43 +701,94 @@ const getEmailSettings = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, emailConfig, "Email settings fetched successfully"));
 });
 
-// Update user's email settings
+// Update user's email settings (updated for new email service format)
 const updateEmailSettings = asyncHandler(async (req, res) => {
-  const { smtpHost, smtpPort, smtpUser, smtpPassword, fromName } = req.body;
+  const { 
+    // Common fields
+    smtpUser, 
+    fromName, 
+    emailService,
+    preferredService,
+    
+    // Legacy SMTP fields (for backward compatibility)
+    smtpHost, 
+    smtpPort, 
+    smtpPassword,
+    
+    // New API service fields
+    googleAccessToken,
+    sendgridApiKey,
+    resendApiKey,
+    brevoApiKey,
+    
+    isConfigured
+  } = req.body;
 
-  // Validate required fields
-  if (!smtpHost || !smtpPort || !smtpUser || !smtpPassword || !fromName) {
-    throw new ApiError(400, "All email configuration fields are required");
+  // Validate required common fields
+  if (!smtpUser || !fromName) {
+    throw new ApiError(400, "Email and company name are required");
   }
 
   // Validate email format
   if (!isValidEmail(smtpUser)) {
-    throw new ApiError(400, "Invalid email format for SMTP user");
+    throw new ApiError(400, "Invalid email format");
   }
+
+  // Validate that at least one service is configured
+  const hasGmail = googleAccessToken || smtpPassword;
+  const hasSendGrid = sendgridApiKey;
+  const hasResend = resendApiKey;
+  const hasBrevo = brevoApiKey;
+  
+  if (!hasGmail && !hasSendGrid && !hasResend && !hasBrevo) {
+    throw new ApiError(400, "Please configure at least one email service");
+  }
+
+  // Build email configuration object
+  const emailConfig = {
+    // Common fields
+    smtpUser,
+    fromName,
+    emailService: emailService || "gmail",
+    preferredService: preferredService || emailService || "gmail",
+    
+    // Legacy SMTP fields (keep for backward compatibility)
+    smtpHost: smtpHost || "smtp.gmail.com",
+    smtpPort: smtpPort ? parseInt(smtpPort) : 587,
+    smtpPassword: smtpPassword || "", // For SMTP fallback
+    
+    // New API service fields
+    googleAccessToken: googleAccessToken || "",
+    sendgridApiKey: sendgridApiKey || "",
+    resendApiKey: resendApiKey || "",
+    brevoApiKey: brevoApiKey || "",
+    
+    // Status
+    isConfigured: isConfigured !== undefined ? isConfigured : true,
+    lastTestedAt: new Date(),
+    isWorking: true
+  };
 
   // Update user's email configuration
   const user = await User.findByIdAndUpdate(
     req.user._id,
-    {
-      emailConfig: {
-        smtpHost,
-        smtpPort: parseInt(smtpPort),
-        smtpUser,
-        smtpPassword, // In production, encrypt this
-        fromName,
-        isConfigured: true
-      }
-    },
+    { emailConfig },
     { new: true }
   ).select('emailConfig');
 
-  // Return config without password
+  // Return config without sensitive data
   const responseConfig = {
-    smtpHost: user.emailConfig.smtpHost,
-    smtpPort: user.emailConfig.smtpPort,
     smtpUser: user.emailConfig.smtpUser,
     fromName: user.emailConfig.fromName,
-    isConfigured: user.emailConfig.isConfigured
+    emailService: user.emailConfig.emailService,
+    preferredService: user.emailConfig.preferredService,
+    isConfigured: user.emailConfig.isConfigured,
+    
+    // Return boolean flags instead of actual keys for security
+    hasGoogleToken: !!user.emailConfig.googleAccessToken,
+    hasSendGridKey: !!user.emailConfig.sendgridApiKey,
+    hasResendKey: !!user.emailConfig.resendApiKey,
+    hasBrevoKey: !!user.emailConfig.brevoApiKey
   };
 
   res
