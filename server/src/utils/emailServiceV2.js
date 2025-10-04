@@ -290,31 +290,52 @@ class BrevoService {
       throw new Error('Brevo API key required.');
     }
 
+    console.log(`🔍 Brevo API Debug - Sending to: ${to}, from: ${fromEmail}, API key: ${userConfig.brevoApiKey.substring(0, 20)}...`);
+
+    const requestBody = {
+      sender: {
+        name: fromName,
+        email: fromEmail
+      },
+      to: [{ email: to }],
+      subject,
+      htmlContent,
+      textContent: textContent || htmlContent.replace(/<[^>]*>/g, '')
+    };
+
+    console.log(`🔍 Brevo Request Body:`, JSON.stringify(requestBody, null, 2));
+
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
-        'api-key': userConfig.brevoApiKey,
-        'Content-Type': 'application/json'
+        'Api-Key': userConfig.brevoApiKey, // Fixed: Case-sensitive header
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
-      body: JSON.stringify({
-        sender: {
-          name: fromName,
-          email: fromEmail
-        },
-        to: [{ email: to }],
-        subject,
-        htmlContent,
-        textContent: textContent || htmlContent.replace(/<[^>]*>/g, '')
-      })
+      body: JSON.stringify(requestBody)
     });
 
+    console.log(`🔍 Brevo Response Status: ${response.status} ${response.statusText}`);
+
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Brevo error: ${error.message || 'Unknown error'}`);
+      let errorText;
+      try {
+        const errorData = await response.json();
+        errorText = JSON.stringify(errorData);
+        console.error(`❌ Brevo API Error Response:`, errorData);
+      } catch (e) {
+        errorText = await response.text();
+        console.error(`❌ Brevo API Error Text:`, errorText);
+      }
+      throw new Error(`Brevo API error (${response.status}): ${errorText}`);
     }
 
     const result = await response.json();
-    return { messageId: result.messageId };
+    console.log(`✅ Brevo API Success Response:`, result);
+    
+    return { 
+      messageId: result.messageId || result.id || `brevo_${Date.now()}` 
+    };
   }
 }
 
