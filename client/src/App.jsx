@@ -15,7 +15,7 @@ import Dashboard from "./pages/Dashboard";
 import Campaigns from "./pages/Campaigns";
 import Customers from "./pages/Customers";
 import Analytics from "./pages/Analytics";
-import EmailSettings from "./pages/EmailSettings";
+import EmailSettingsV2 from "./pages/EmailSettingsV2";
 import Footer from "./component/common/Footer";
 import Navbar from "./component/common/Navbar";
 import Segment from "./component/Campaign/Segment";
@@ -120,7 +120,7 @@ function App() {
                 path="/email-settings"
                 element={
                   <ProtectedRoute>
-                    <EmailSettings />
+                    <EmailSettingsV2 />
                   </ProtectedRoute>
                 }
               />
