@@ -187,40 +187,36 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Contact Section */}
-      <section id="contact" className="py-12 bg-gradient-to-br from-slate-50 to-slate-100">
-        <div className="max-w-4xl mx-auto px-6">
-          <h2 className="text-3xl font-bold text-slate-900 text-center mb-6">Contact</h2>
-          <div className="bg-white rounded-3xl p-6 shadow-lg border border-slate-200/50 backdrop-blur-sm">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <a href="mailto:mr.rayyan2005@gmail.com" className="flex items-center p-3 rounded-2xl bg-gradient-to-r from-blue-50 to-blue-100/50 hover:from-blue-100 hover:to-blue-200/50 hover:text-blue-700 transition-all duration-300 group border border-blue-100/50 hover:border-blue-200 hover:shadow-md">
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mr-3 group-hover:scale-110 transition-transform">
-                  <FiMail className="w-4 h-4 text-white" />
-                </div>
-                <span className="font-medium">mr.rayyan2005@gmail.com</span>
-              </a>
-              <a href="mailto:ankit6686510@gmail.com" className="flex items-center p-3 rounded-2xl bg-gradient-to-r from-purple-50 to-purple-100/50 hover:from-purple-100 hover:to-purple-200/50 hover:text-purple-700 transition-all duration-300 group border border-purple-100/50 hover:border-purple-200 hover:shadow-md">
-                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl flex items-center justify-center mr-3 group-hover:scale-110 transition-transform">
-                  <FiMail className="w-4 h-4 text-white" />
-                </div>
-                <span className="font-medium">ankit6686510@gmail.com</span>
-              </a>
-              <a href="tel:+919897700769" className="flex items-center p-3 rounded-2xl bg-gradient-to-r from-green-50 to-green-100/50 hover:from-green-100 hover:to-green-200/50 hover:text-green-700 transition-all duration-300 group border border-green-100/50 hover:border-green-200 hover:shadow-md">
-                <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-green-600 rounded-xl flex items-center justify-center mr-3 group-hover:scale-110 transition-transform">
-                  <FiPhone className="w-4 h-4 text-white" />
-                </div>
-                <span className="font-medium">+91 98977 00769</span>
-              </a>
-              <a href="tel:+919310934230" className="flex items-center p-3 rounded-2xl bg-gradient-to-r from-orange-50 to-orange-100/50 hover:from-orange-100 hover:to-orange-200/50 hover:text-orange-700 transition-all duration-300 group border border-orange-100/50 hover:border-orange-200 hover:shadow-md">
-                <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl flex items-center justify-center mr-3 group-hover:scale-110 transition-transform">
-                  <FiPhone className="w-4 h-4 text-white" />
-                </div>
-                <span className="font-medium">+91 93109 34230</span>
-              </a>
-            </div>
+     {/* Contact Section */}
+<section id="contact" className="py-12 bg-gradient-to-br from-slate-50 to-slate-100">
+  <div className="max-w-4xl mx-auto px-6">
+    <h2 className="text-3xl font-bold text-slate-900 text-center mb-6">Contact</h2>
+    <div className="bg-white rounded-3xl p-6 shadow-lg border border-slate-200/50 backdrop-blur-sm">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <a
+          href="mailto:mr.rayyan2005@gmail.com"
+          className="flex items-center p-3 rounded-2xl bg-gradient-to-r from-blue-50 to-blue-100/50 hover:from-blue-100 hover:to-blue-200/50 hover:text-blue-700 transition-all duration-300 group border border-blue-100/50 hover:border-blue-200 hover:shadow-md"
+        >
+          <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mr-3 group-hover:scale-110 transition-transform">
+            <FiMail className="w-4 h-4 text-white" />
           </div>
-        </div>
-      </section>
+          <span className="font-medium">mr.rayyan2005@gmail.com</span>
+        </a>
+
+        <a
+          href="tel:+919897700769"
+          className="flex items-center p-3 rounded-2xl bg-gradient-to-r from-green-50 to-green-100/50 hover:from-green-100 hover:to-green-200/50 hover:text-green-700 transition-all duration-300 group border border-green-100/50 hover:border-green-200 hover:shadow-md"
+        >
+          <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-green-600 rounded-xl flex items-center justify-center mr-3 group-hover:scale-110 transition-transform">
+            <FiPhone className="w-4 h-4 text-white" />
+          </div>
+          <span className="font-medium">+91 98977 00769</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
 
       {/* Footer */}
       <footer className="bg-slate-900 text-white py-16">
