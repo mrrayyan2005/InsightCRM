@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: insightcrm-client
+    env: static
+    buildCommand: cd client && npm install && npm run build
+    publishPath: client/dist
+    headers:
+      - source: /*
+        headers:
+          - key: Cross-Origin-Opener-Policy
+            value: same-origin-allow-popups
+          - key: Cross-Origin-Embedder-Policy
+            value: unsafe-none
