@@ -36,16 +36,17 @@ export const ApiProvider = ({ children }) => {
       setAuthUser(response.data.user);
       setIsAuthenticated(true);
     } catch (error) {
-     // If the error is not 401 (unauthorized), log the error
-      if (error.response?.status !== 401) {
+      // Silently handle 401 - user is not logged in
+      if (error.response?.status === 401) {
+        setAuthUser(null);
+        setIsAuthenticated(false);
+      } else {
+        // Log other errors
         console.error("Auth verification error:", error);
+        setAuthUser(null);
+        setIsAuthenticated(false);
       }
-      setAuthUser(null);
-      setIsAuthenticated(false);
-      // If we're not on the login or home page, redirect to login
-      if (location.pathname !== "/login" && location.pathname !== "/") {
-        navigate("/login", { replace: true });
-      }
+      // Don't redirect - let the user stay on current page
     } finally {
       setLoading(false);
     }
@@ -60,14 +61,14 @@ export const ApiProvider = ({ children }) => {
     try {
       setLoadingCustomers(true);
       const response = await axiosInstance.get("/customer/get");
-      setCustomers(response.data.data);
-
-      return response.data.data;
+      setCustomers(response.data.data || []);
+      setCustomerError(null);
+      return response.data.data || [];
     } catch (error) {
-      setCustomerError(
-        error.response?.data?.message || "Failed to fetch customers"
-      );
-      throw error;
+      console.error("Failed to fetch customers:", error);
+      setCustomers([]);
+      setCustomerError(error.response?.data?.message || "Failed to fetch customers");
+      return []; // Return empty array instead of throwing
     } finally {
       setLoadingCustomers(false);
     }
@@ -103,6 +104,7 @@ export const ApiProvider = ({ children }) => {
       });
 
       const { user } = response.data.data;
+      console.log("Login successful, user data:", user);
       setAuthUser(user);
       setIsAuthenticated(true);
 
@@ -113,6 +115,8 @@ export const ApiProvider = ({ children }) => {
         error.response?.data?.message || "Google login failed";
       toast.error(errorMessage);
       console.error("Google Login Error:", error);
+      setAuthUser(null);
+      setIsAuthenticated(false);
     } finally {
       setLoading(false);
     }

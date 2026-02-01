@@ -21,17 +21,20 @@ const googleLogin = asyncHandler(async (req, res) => {
   let user = await User.findOne({ email: googleUser.email });
 
   if (!user) {
-    // Create new user
+    // Create new user with all required fields
     user = await User.create({
       googleId: googleUser.sub,
       email: googleUser.email,
-      name: googleUser.name,
-      avatar: googleUser.picture,
+      name: googleUser.name || googleUser.email.split('@')[0],
+      avatar: googleUser.picture || "",
       isVerified: true,
     });
-  } else if (!user.googleId) {
-    // Update existing user with Google ID
+  } else {
+    // Update existing user with latest Google data
     user.googleId = googleUser.sub;
+    user.name = googleUser.name || user.name;
+    user.avatar = googleUser.picture || user.avatar;
+    user.isVerified = true;
     await user.save();
   }
 
@@ -50,9 +53,19 @@ const googleLogin = asyncHandler(async (req, res) => {
   res.cookie("accessToken", accessToken, cookieOptions);
   res.cookie("refreshToken", refreshToken, cookieOptions);
 
+  // Return user data without sensitive fields
+  const userData = {
+    _id: user._id,
+    email: user.email,
+    name: user.name,
+    avatar: user.avatar,
+    googleId: user.googleId,
+    isVerified: user.isVerified,
+  };
+
   return res
     .status(200)
-    .json(new ApiResponse(200, { user }, "Login successful"));
+    .json(new ApiResponse(200, { user: userData }, "Login successful"));
 });
 
 const logout = asyncHandler(async (req, res) => {

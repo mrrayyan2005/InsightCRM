@@ -44,9 +44,11 @@ const Campaigns = () => {
     try {
       setLoading(true);
       const response = await axiosInstance.get("/user/get-campaign");
-      setCampaigns(response.data.data);
+      setCampaigns(response.data.data || []);
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to fetch campaigns");
+      console.error("Failed to fetch campaigns:", error);
+      setCampaigns([]); // Set empty array on error
+      // Don't show toast error - let the page load with empty state
     } finally {
       setLoading(false);
     }

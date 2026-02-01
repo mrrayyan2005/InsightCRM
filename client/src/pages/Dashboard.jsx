@@ -49,17 +49,27 @@ const Dashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const [campaignsRes, customersRes, segmentsRes] = await Promise.all([
+      const [campaignsRes, customersRes, segmentsRes] = await Promise.allSettled([
         axiosInstance.get("/user/get-campaign"),
         axiosInstance.get("/customer/get"),
         axiosInstance.get("/user/get-segment")
       ]);
       
-      setCampaigns(campaignsRes.data.data || []);
-      setCustomers(customersRes.data.data || []);
-      setSegments(segmentsRes.data.data || []);
+      // Handle each response separately
+      setCampaigns(campaignsRes.status === 'fulfilled' ? (campaignsRes.value.data.data || []) : []);
+      setCustomers(customersRes.status === 'fulfilled' ? (customersRes.value.data.data || []) : []);
+      setSegments(segmentsRes.status === 'fulfilled' ? (segmentsRes.value.data.data || []) : []);
+      
+      // Log errors but don't block the UI
+      if (campaignsRes.status === 'rejected') console.error("Failed to load campaigns:", campaignsRes.reason);
+      if (customersRes.status === 'rejected') console.error("Failed to load customers:", customersRes.reason);
+      if (segmentsRes.status === 'rejected') console.error("Failed to load segments:", segmentsRes.reason);
     } catch (error) {
-      toast.error("Failed to load dashboard data");
+      console.error("Dashboard data fetch error:", error);
+      // Set empty arrays on error
+      setCampaigns([]);
+      setCustomers([]);
+      setSegments([]);
     } finally {
       setLoading(false);
     }
