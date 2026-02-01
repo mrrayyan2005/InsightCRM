@@ -6,6 +6,13 @@ import { swaggerSpec } from './docs/swagger/index.js';
 
 const app = express();
 
+// Set COOP headers to allow Google OAuth popup
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  next();
+});
+
 // More explicit CORS configuration for debugging
 app.use(cors({ 
   origin: ["http://localhost:5173", "http://localhost:5174", "https://insight-crm-eight.vercel.app"], 
