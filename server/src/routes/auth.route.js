@@ -17,19 +17,16 @@ router.route("/verify").get(async (req, res) => {
   try {
     // Import authenticate middleware inline to handle errors
     const { authenticate } = await import("../middleware/auth.middleware.js");
+    const { ApiResponse } = await import("../utils/ApiResponse.js");
     
     // Use authenticate as middleware
     await authenticate(req, res, () => {});
     
-    // If we get here, user is authenticated
-    res.json({ user: req.user });
+    // If we get here, user is authenticated - return consistent format
+    return res.status(200).json(new ApiResponse(200, { user: req.user }, "User verified"));
   } catch (error) {
     // Return 401 with user: null instead of throwing error
-    res.status(401).json({ 
-      statusCode: 401,
-      message: "Unauthorized",
-      user: null 
-    });
+    return res.status(401).json(new ApiResponse(401, { user: null }, "Unauthorized"));
   }
 });
 

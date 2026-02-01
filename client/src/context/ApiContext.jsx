@@ -33,7 +33,8 @@ export const ApiProvider = ({ children }) => {
       const response = await axiosInstance.get("/auth/verify", {
         withCredentials: true,
       });
-      setAuthUser(response.data.user);
+      // ApiResponse format: { data: { user: {...} } }
+      setAuthUser(response.data.data?.user || response.data.user);
       setIsAuthenticated(true);
     } catch (error) {
       // Silently handle 401 - user is not logged in
