@@ -12,10 +12,17 @@ const googleLogin = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Google token is required");
   }
 
+  console.log("Google login attempt - token received:", !!token);
+  console.log("Google Client ID configured:", !!process.env.GOOGLE_CLIENT_ID);
+
   const googleUser = await verifyGoogleToken(token);
+  
   if (!googleUser) {
+    console.error("Google token verification failed");
     throw new ApiError(401, "Invalid Google token");
   }
+
+  console.log("Google user verified:", googleUser.email);
 
   // Check if user exists
   let user = await User.findOne({ email: googleUser.email });
