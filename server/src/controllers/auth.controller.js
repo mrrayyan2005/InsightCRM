@@ -24,55 +24,65 @@ const googleLogin = asyncHandler(async (req, res) => {
 
   console.log("Google user verified:", googleUser.email);
 
-  // Check if user exists
-  let user = await User.findOne({ email: googleUser.email });
+  try {
+    // Check if user exists
+    let user = await User.findOne({ email: googleUser.email });
 
-  if (!user) {
-    // Create new user with all required fields
-    user = await User.create({
-      googleId: googleUser.sub,
-      email: googleUser.email,
-      name: googleUser.name || googleUser.email.split('@')[0],
-      avatar: googleUser.picture || "",
-      isVerified: true,
-    });
-  } else {
-    // Update existing user with latest Google data
-    user.googleId = googleUser.sub;
-    user.name = googleUser.name || user.name;
-    user.avatar = googleUser.picture || user.avatar;
-    user.isVerified = true;
-    await user.save();
+    if (!user) {
+      console.log("Creating new user for:", googleUser.email);
+      // Create new user with all required fields
+      user = await User.create({
+        googleId: googleUser.sub,
+        email: googleUser.email,
+        name: googleUser.name || googleUser.email.split('@')[0],
+        avatar: googleUser.picture || "",
+        isVerified: true,
+      });
+      console.log("New user created successfully");
+    } else {
+      console.log("Updating existing user:", googleUser.email);
+      // Update existing user with latest Google data
+      user.googleId = googleUser.sub;
+      user.name = googleUser.name || user.name;
+      user.avatar = googleUser.picture || user.avatar;
+      user.isVerified = true;
+      await user.save();
+      console.log("User updated successfully");
+    }
+
+    // Generate tokens
+    const { accessToken, refreshToken } = generateTokens(user);
+
+    // Set cookies
+    const isProduction = process.env.NODE_ENV === "production";
+    const cookieOptions = {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "None" : "Lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    };
+
+    res.cookie("accessToken", accessToken, cookieOptions);
+    res.cookie("refreshToken", refreshToken, cookieOptions);
+
+    // Return user data without sensitive fields
+    const userData = {
+      _id: user._id,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar,
+      googleId: user.googleId,
+      isVerified: user.isVerified,
+    };
+
+    console.log("Login successful for:", userData.email);
+    return res
+      .status(200)
+      .json(new ApiResponse(200, { user: userData }, "Login successful"));
+  } catch (dbError) {
+    console.error("Database error during login:", dbError);
+    throw new ApiError(500, "Database error: " + dbError.message);
   }
-
-  // Generate tokens
-  const { accessToken, refreshToken } = generateTokens(user);
-
-  // Set cookies
-  const isProduction = process.env.NODE_ENV === "production";
-  const cookieOptions = {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "None" : "Lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  };
-
-  res.cookie("accessToken", accessToken, cookieOptions);
-  res.cookie("refreshToken", refreshToken, cookieOptions);
-
-  // Return user data without sensitive fields
-  const userData = {
-    _id: user._id,
-    email: user.email,
-    name: user.name,
-    avatar: user.avatar,
-    googleId: user.googleId,
-    isVerified: user.isVerified,
-  };
-
-  return res
-    .status(200)
-    .json(new ApiResponse(200, { user: userData }, "Login successful"));
 });
 
 const logout = asyncHandler(async (req, res) => {
