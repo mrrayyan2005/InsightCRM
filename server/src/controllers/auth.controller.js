@@ -111,7 +111,10 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   const refreshToken = req.cookies.refreshToken;
 
   if (!refreshToken) {
-    throw new ApiError(401, "Unauthorized request");
+    // Return 401 without throwing error to avoid global error logging
+    return res
+      .status(401)
+      .json(new ApiResponse(401, null, "No refresh token provided"));
   }
 
   try {
@@ -119,7 +122,9 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     const user = await User.findById(decoded.id);
 
     if (!user) {
-      throw new ApiError(401, "Invalid refresh token");
+      return res
+        .status(401)
+        .json(new ApiResponse(401, null, "Invalid refresh token - user not found"));
     }
 
     const { accessToken } = generateTokens(user);
@@ -135,7 +140,10 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       .status(200)
       .json(new ApiResponse(200, { accessToken }, "Access token refreshed"));
   } catch (error) {
-    throw new ApiError(401, error?.message || "Invalid refresh token");
+    console.error("Refresh token error:", error.message);
+    return res
+      .status(401)
+      .json(new ApiResponse(401, null, "Invalid or expired refresh token"));
   }
 });
 
